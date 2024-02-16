@@ -5,19 +5,24 @@ using ESC_POS_USB_NET.Helper;
 using ESC_POS_USB_NET.Interfaces.Command;
 using ESC_POS_USB_NET.Interfaces.Printer;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Text;
+using System.Xml.Schema;
 
 namespace ESC_POS_USB_NET.Printer
 {
     public class Printer : IPrinter
     {
         private byte[] _buffer;
+        private StringBuilder _bufferstring = new StringBuilder();
         private readonly string _printerName;
         private readonly IPrintCommand _command;
         private readonly string _codepage;
-        public Printer(string printerName, string codepage= "IBM860")
+        public Printer(string printerName, string codepage = "IBM860")
         {
             _printerName = string.IsNullOrEmpty(printerName) ? "escpos.prn" : printerName.Trim();
             _command = new EscPos();
@@ -55,10 +60,46 @@ namespace ESC_POS_USB_NET.Printer
             if (!RawPrinterHelper.SendBytesToPrinter(_printerName, _buffer))
                 throw new ArgumentException("Unable to access printer : " + _printerName);
         }
+        public void PrintToFile(string namefile)
+        {
+            if (_bufferstring == null)
+                return;
+
+
+            if (System.IO.File.Exists(namefile))
+            {
+                FileInfo fi = new FileInfo(namefile);
+                using (TextWriter txtWriter = new StreamWriter((!fi.Exists ? fi.Create() : fi.Open(FileMode.Truncate))))
+                {
+                    txtWriter.Write(_bufferstring.ToString());
+                }
+            }
+            else
+            {
+                System.IO.File.AppendAllText(namefile, _bufferstring.ToString());
+            }
+            //System.IO.File.AppendAllText(namefile, string.Empty);
+            //System.IO.File.AppendAllText(namefile, _bufferstring.ToString());
+
+        }
 
         public void Append(string value)
         {
             AppendString(value, true);
+        }
+        public void Append(string valueleft, string valueright, int maxcol, char paddingChar = ' ')
+        {
+
+            AppendString(getappend(valueleft, valueright, maxcol, paddingChar), true);
+        }
+        protected string getappend(string valueleft, string valueright, int maxcol, char paddingChar = ' ')
+        {
+            int _totalwidth = maxcol - (valueright.Length + valueleft.Length);
+            if ((_totalwidth + valueleft.Length) < maxcol)
+            {
+                _totalwidth += maxcol - (_totalwidth + valueleft.Length);
+            }
+            return valueleft + valueright.PadLeft(_totalwidth, paddingChar);
         }
 
         public void Append(byte[] value)
@@ -70,6 +111,9 @@ namespace ESC_POS_USB_NET.Printer
                 list.AddRange(_buffer);
             list.AddRange(value);
             _buffer = list.ToArray();
+            _bufferstring.Append(System.Text.Encoding.UTF8.GetString(value));
+
+
         }
 
         public void AppendWithoutLf(string value)
@@ -81,14 +125,24 @@ namespace ESC_POS_USB_NET.Printer
         {
             if (string.IsNullOrEmpty(value))
                 return;
+
             if (useLf)
+            {
+                _bufferstring.AppendLine(value);
                 value += "\n";
+            }
+            else
+            {
+                _bufferstring.Append(value);
+            }
+
             var list = new List<byte>();
             if (_buffer != null)
                 list.AddRange(_buffer);
             var bytes = Encoding.GetEncoding(_codepage).GetBytes(value);
             list.AddRange(bytes);
             _buffer = list.ToArray();
+
         }
 
         public void NewLine()
@@ -105,11 +159,12 @@ namespace ESC_POS_USB_NET.Printer
         public void Clear()
         {
             _buffer = null;
+            _bufferstring = new StringBuilder();
         }
 
         public void Separator(char speratorChar = '-')
         {
-            Append(_command.Separator(speratorChar ));
+            Append(_command.Separator(speratorChar));
         }
 
         public void AutoTest()
@@ -168,7 +223,10 @@ namespace ESC_POS_USB_NET.Printer
             Append("End of Test :)");
             Separator();
         }
-
+        public void BoldMode(string valueleft, string valueright, int maxcol, char paddingChar = ' ')
+        {
+            Append(_command.FontMode.Bold(getappend(valueleft, valueright, maxcol, paddingChar)));
+        }
         public void BoldMode(string value)
         {
             Append(_command.FontMode.Bold(value));
@@ -264,24 +322,24 @@ namespace ESC_POS_USB_NET.Printer
             Append(_command.QrCode.Print(qrData));
         }
 
-        public void QrCode(string qrData, QrCodeSize qrCodeSize )
+        public void QrCode(string qrData, QrCodeSize qrCodeSize)
         {
             Append(_command.QrCode.Print(qrData, qrCodeSize));
         }
 
         public void Code128(string code, Positions printString = Positions.NotPrint)
         {
-            Append(_command.BarCode.Code128(code,  printString));
+            Append(_command.BarCode.Code128(code, printString));
         }
 
-        public void Code39(string code, Positions printString=Positions.NotPrint)
+        public void Code39(string code, Positions printString = Positions.NotPrint)
         {
-            Append(_command.BarCode.Code39(code,  printString));
+            Append(_command.BarCode.Code39(code, printString));
         }
 
         public void Ean13(string code, Positions printString = Positions.NotPrint)
         {
-            Append(_command.BarCode.Ean13(code,  printString));
+            Append(_command.BarCode.Ean13(code, printString));
         }
 
         public void InitializePrint()
