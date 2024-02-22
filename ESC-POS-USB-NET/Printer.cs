@@ -87,6 +87,7 @@ namespace ESC_POS_USB_NET.Printer
         {
             AppendString(value, true);
         }
+
         public void Append(string valueleft, string valueright, int maxcol, char paddingChar = ' ')
         {
 
@@ -166,6 +167,7 @@ namespace ESC_POS_USB_NET.Printer
         {
             Append(_command.Separator(speratorChar));
         }
+        public void Separator(int colmax,char speratorChar = '-') => Append("-".PadLeft(colmax, '-'));
 
         public void AutoTest()
         {
